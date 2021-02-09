@@ -321,6 +321,7 @@ supported_structs = [
     "XrGraphicsRequirementsD3D11KHR",
     "XrSessionCreateInfoOverlayEXTX",
     "XrEventDataMainSessionVisibilityChangedEXTX",
+	"XrVisibilityMaskKHR",
 ]
 
 manually_implemented_commands = [
@@ -403,6 +404,7 @@ supported_commands = [
     "xrSessionInsertDebugUtilsLabelEXT",
     "xrApplyHapticFeedback",
     "xrStopHapticFeedback",
+    "xrGetVisibilityMaskKHR",
 ]
 
 supported_handles = [
@@ -1874,6 +1876,40 @@ StopHapticFeedbackRPC = {
     "function" : "OverlaysLayerStopHapticFeedbackMainAsOverlay"
 }
 
+GetVisibilityMaskKHRRPC = {
+    "command_name" : "GetVisibilityMaskKHR",
+    "args" : (
+        {
+            "name" : "session",
+            "type" : "POD",
+            "pod_type" : "XrSession",
+        },
+        {
+            "name" : "viewConfigurationType",
+            "type" : "POD",
+            "pod_type" : "XrViewConfigurationType",
+        },
+        {
+            "name" : "viewIndex",
+            "type" : "POD",
+            "pod_type" : "uint32_t",
+        },
+        {
+            "name" : "visibilityMaskType",
+            "type" : "POD",
+            "pod_type" : "XrVisibilityMaskTypeKHR"
+        },
+        {
+            "name" : "visibilityMask",
+            "type" : "pointer_to_pod",
+            "pod_type" : "XrVisibilityMaskKHR",
+            "is_const" : False
+        },
+    ),
+    "function" : "OverlaysLayerGetVisibilityMaskKHRMainAsOverlay"
+}
+
+
 rpcs = (
     CreateSessionRPC,
     DestroySessionRPC,
@@ -1901,6 +1937,7 @@ rpcs = (
     GetInputSourceLocalizedNameRPC,
     ApplyHapticFeedbackRPC,
     StopHapticFeedbackRPC,
+	GetVisibilityMaskKHRRPC,
 )
 
 
@@ -2969,10 +3006,13 @@ for command_name in [c for c in supported_commands if c not in manually_implemen
     bool isProxied = {handle_name}Info->isProxied;
     XrResult result;
     if(isProxied) {{
+		OverlaysLayerLogMessage(XR_NULL_HANDLE, XR_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT, "xr{dispatch_command}", OverlaysLayerNoObjectInfo, "Call OverlaysLayer{dispatch_command}Overlay");
         result = OverlaysLayer{dispatch_command}Overlay({handle_name}Info->parentInstance, {parameter_names});
     }} else {{
+		OverlaysLayerLogMessage(XR_NULL_HANDLE, XR_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT, "xr{dispatch_command}", OverlaysLayerNoObjectInfo, "OverlaysLayer{dispatch_command}Main");
         result = OverlaysLayer{dispatch_command}Main({handle_name}Info->parentInstance, {parameter_names});
     }}
+	OverlaysLayerLogMessage(XR_NULL_HANDLE, XR_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT, "xr{dispatch_command}", OverlaysLayerNoObjectInfo, "Return OverlaysLayer{dispatch_command}");
 """
     else:
         call_actual_command = f"""

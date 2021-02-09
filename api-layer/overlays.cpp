@@ -66,8 +66,8 @@
 
 const char *kOverlayLayerName = "xr_extx_overlay";
 
-constexpr bool PrintDebugInfo = false;
-constexpr bool AlsoLogToFile = false;
+constexpr bool PrintDebugInfo = true;
+constexpr bool AlsoLogToFile = true;
 FILE *LogFile = nullptr;
 
 void LogToFile(const char *str)
@@ -843,10 +843,17 @@ bool OverlaySwapchain::CreateTextures(XrInstance instance, ID3D11Device *d3d11, 
         desc.CPUAccessFlags = 0;
         desc.MiscFlags = D3D11_RESOURCE_MISC_SHARED_NTHANDLE | D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX;
 
+
         if(TypedFormatToTypelessFormat.count(format) > 0) {
             desc.Format = TypedFormatToTypelessFormat.at(format);
         } else {
             desc.Format = format;
+        }
+
+        if (swapchainTextures[i] == NULL)
+        {
+            OverlaysLayerLogMessage(XR_NULL_HANDLE, XR_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT, "CreateTexture", OverlaysLayerNoObjectInfo, "Swap texture was null.");
+            continue;
         }
 
         HRESULT result;
@@ -3913,7 +3920,7 @@ XrResult GetActionStates(XrSession session, const ActionGetInfoList& actionsToGe
                 state->next = nullptr;
                 result = sessionInfo->downchain->GetActionStateBoolean(sessionInfo->actualHandle, &get, state);
                 if(result != XR_SUCCESS) {
-                    OverlaysLayerLogMessage(XR_NULL_HANDLE, XR_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT, "xrSyncActions", OverlaysLayerNoObjectInfo, "Couldn't get state in bulk update");
+                    OverlaysLayerLogMessage(XR_NULL_HANDLE, XR_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT, "xrSyncActions", OverlaysLayerNoObjectInfo, "Couldn't get state in bulk update : XR_ACTION_TYPE_BOOLEAN_INPUT");
                     return result;
                 }
                 break;
@@ -3924,7 +3931,7 @@ XrResult GetActionStates(XrSession session, const ActionGetInfoList& actionsToGe
                 state->next = nullptr;
                 result = sessionInfo->downchain->GetActionStateFloat(sessionInfo->actualHandle, &get, state);
                 if(result != XR_SUCCESS) {
-                    OverlaysLayerLogMessage(XR_NULL_HANDLE, XR_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT, "xrSyncActions", OverlaysLayerNoObjectInfo, "Couldn't get state in bulk update");
+                    OverlaysLayerLogMessage(XR_NULL_HANDLE, XR_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT, "xrSyncActions", OverlaysLayerNoObjectInfo, "Couldn't get state in bulk update : XR_ACTION_TYPE_FLOAT_INPUT");
                     return result;
                 }
                 break;
@@ -3935,7 +3942,7 @@ XrResult GetActionStates(XrSession session, const ActionGetInfoList& actionsToGe
                 state->next = nullptr;
                 result = sessionInfo->downchain->GetActionStateVector2f(sessionInfo->actualHandle, &get, state);
                 if(result != XR_SUCCESS) {
-                    OverlaysLayerLogMessage(XR_NULL_HANDLE, XR_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT, "xrSyncActions", OverlaysLayerNoObjectInfo, "Couldn't get state in bulk update");
+                    OverlaysLayerLogMessage(XR_NULL_HANDLE, XR_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT, "xrSyncActions", OverlaysLayerNoObjectInfo, "Couldn't get state in bulk update : XR_ACTION_TYPE_VECTOR2F_INPUT");
                     return result;
                 }
                 break;
@@ -3946,7 +3953,7 @@ XrResult GetActionStates(XrSession session, const ActionGetInfoList& actionsToGe
                 state->next = nullptr;
                 result = sessionInfo->downchain->GetActionStatePose(sessionInfo->actualHandle, &get, state);
                 if(result != XR_SUCCESS) {
-                    OverlaysLayerLogMessage(XR_NULL_HANDLE, XR_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT, "xrSyncActions", OverlaysLayerNoObjectInfo, "Couldn't get state in bulk update");
+                    OverlaysLayerLogMessage(XR_NULL_HANDLE, XR_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT, "xrSyncActions", OverlaysLayerNoObjectInfo, "Couldn't get state in bulk update : XR_ACTION_TYPE_POSE_INPUT");
                     return result;
                 }
                 break;
@@ -4323,9 +4330,9 @@ XrResult OverlaysLayerSyncActionsMain(XrInstance parentInstance, XrSession sessi
         return XR_SESSION_NOT_FOCUSED;
     }
 
-    if(result != XR_SUCCESS) {
+    //if(result != XR_SUCCESS) {
         return result;
-    }
+    //}
 
     // Make queryable data structures for data spread across activeActionSets
     std::set<OverlaysLayerXrActionSetHandleInfo::Ptr> actionSetInfos;
@@ -4982,6 +4989,25 @@ XrResult OverlaysLayerEnumerateBoundSourcesForActionOverlay(XrInstance instance,
     }
 
     return XR_SUCCESS;
+}
+
+XrResult OverlaysLayerGetVisibilityMaskKHRMainAsOverlay(ConnectionToOverlay::Ptr connection, XrSession session, XrViewConfigurationType viewConfigurationType, uint32_t viewIndex, XrVisibilityMaskTypeKHR visibilityMaskType, XrVisibilityMaskKHR* visibilityMask)
+{
+    auto synchronizeEveryProcLock = gSynchronizeEveryProc ? std::unique_lock<std::recursive_mutex>(gSynchronizeEveryProcMutex) : std::unique_lock<std::recursive_mutex>();
+    OverlaysLayerXrSessionHandleInfo::Ptr sessionInfo = OverlaysLayerGetHandleInfoFromXrSession(session);
+
+    OverlaysLayerLogMessage(XR_NULL_HANDLE, XR_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT, "xrGetVisibilityMaskKHR", OverlaysLayerNoObjectInfo, "Call OverlaysLayerGetVisibilityMaskKHRMainAsOverlay");
+    
+    return sessionInfo->downchain->GetVisibilityMaskKHR(sessionInfo->actualHandle, viewConfigurationType, viewIndex, visibilityMaskType, visibilityMask);
+}
+
+XrResult OverlaysLayerGetVisibilityMaskKHROverlay(XrInstance instance, XrSession session, XrViewConfigurationType viewConfigurationType, uint32_t viewIndex, XrVisibilityMaskTypeKHR visibilityMaskType, XrVisibilityMaskKHR* visibilityMask)
+{
+    auto sessionInfo = OverlaysLayerGetHandleInfoFromXrSession(session);
+    
+    OverlaysLayerLogMessage(XR_NULL_HANDLE, XR_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT, "xrGetVisibilityMaskKHR", OverlaysLayerNoObjectInfo, "Call OverlaysLayerGetVisibilityMaskKHROverlay");
+
+    return RPCCallGetVisibilityMaskKHR(sessionInfo->parentInstance, sessionInfo->actualHandle, viewConfigurationType, viewIndex, visibilityMaskType, visibilityMask);
 }
 
 

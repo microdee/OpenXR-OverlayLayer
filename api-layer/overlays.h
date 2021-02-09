@@ -641,8 +641,12 @@ struct OverlaySwapchain
     ~OverlaySwapchain()
     {
         // XXX Need to AcquireSync from remote side?
-        for(int i = 0; i < swapchainTextures.size(); i++) {
-            swapchainTextures[i]->Release();
+        for(int i = 0; i < swapchainTextures.size(); i++)
+        {
+            if (swapchainTextures[i])
+            {
+                swapchainTextures[i]->Release();
+            }
         }
     }
     typedef std::shared_ptr<OverlaySwapchain> Ptr;
@@ -1045,5 +1049,8 @@ XrResult OverlaysLayerDestroyActionSetOverlay(XrInstance instance, XrActionSet a
 
 XrResult OverlaysLayerDestroyActionMainAsOverlay(ConnectionToOverlay::Ptr connection, XrAction action);
 XrResult OverlaysLayerDestroyActionOverlay(XrInstance instance, XrAction action);
+
+XrResult OverlaysLayerGetVisibilityMaskKHRMainAsOverlay(ConnectionToOverlay::Ptr connection, XrSession session, XrViewConfigurationType viewConfigurationType, uint32_t viewIndex, XrVisibilityMaskTypeKHR visibilityMaskType, XrVisibilityMaskKHR* visibilityMask);
+XrResult OverlaysLayerGetVisibilityMaskKHROverlay(XrInstance instance, XrSession session, XrViewConfigurationType viewConfigurationType, uint32_t viewIndex, XrVisibilityMaskTypeKHR visibilityMaskType, XrVisibilityMaskKHR* visibilityMask);
 
 #endif /* _OVERLAYS_H_ */
