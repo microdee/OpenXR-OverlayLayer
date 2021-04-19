@@ -643,7 +643,7 @@ struct OverlaySwapchain
         // XXX Need to AcquireSync from remote side?
         for(int i = 0; i < swapchainTextures.size(); i++)
         {
-            if (swapchainTextures[i])
+            if (swapchainTextures[i] != nullptr)
             {
                 swapchainTextures[i]->Release();
             }

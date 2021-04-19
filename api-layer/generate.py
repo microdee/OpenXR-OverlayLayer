@@ -407,6 +407,69 @@ supported_commands = [
     "xrGetVisibilityMaskKHR",
 ]
 
+supported_overlay_commands = [
+    "xrDestroyInstance",
+    "xrGetInstanceProperties",
+    "xrPollEvent",
+    "xrResultToString",
+    "xrStructureTypeToString",
+    "xrGetSystem",
+    "xrGetSystemProperties",
+    "xrEnumerateEnvironmentBlendModes",
+    "xrCreateSession",
+    "xrDestroySession",
+    "xrEnumerateReferenceSpaces",
+    "xrCreateReferenceSpace",
+    "xrGetReferenceSpaceBoundsRect",
+    "xrCreateActionSpace",
+    "xrLocateSpace",
+    "xrDestroySpace",
+    "xrEnumerateViewConfigurations",
+    "xrGetViewConfigurationProperties",
+    "xrEnumerateViewConfigurationViews",
+    "xrEnumerateSwapchainFormats",
+    "xrCreateSwapchain",
+    "xrDestroySwapchain",
+    "xrEnumerateSwapchainImages",
+    "xrAcquireSwapchainImage",
+    "xrWaitSwapchainImage",
+    "xrReleaseSwapchainImage",
+    "xrBeginSession",
+    "xrEndSession",
+    "xrRequestExitSession",
+    "xrWaitFrame",
+    "xrBeginFrame",
+    "xrEndFrame",
+    "xrLocateViews",
+    "xrStringToPath",
+    "xrPathToString",
+    "xrCreateActionSet",
+    "xrDestroyActionSet",
+    "xrCreateAction",
+    "xrDestroyAction",
+    "xrSuggestInteractionProfileBindings",
+    "xrAttachSessionActionSets",
+    "xrGetCurrentInteractionProfile",
+    "xrGetActionStateBoolean",
+    "xrGetActionStateFloat",
+    "xrGetActionStateVector2f",
+    "xrGetActionStatePose",
+    "xrSyncActions",
+    "xrEnumerateBoundSourcesForAction",
+    "xrGetInputSourceLocalizedName",
+    "xrGetD3D11GraphicsRequirementsKHR",
+    "xrSetDebugUtilsObjectNameEXT",
+    "xrCreateDebugUtilsMessengerEXT",
+    "xrDestroyDebugUtilsMessengerEXT",
+    "xrSubmitDebugUtilsMessageEXT",
+    "xrSessionBeginDebugUtilsLabelRegionEXT",
+    "xrSessionEndDebugUtilsLabelRegionEXT",
+    "xrSessionInsertDebugUtilsLabelEXT",
+    "xrApplyHapticFeedback",
+    "xrStopHapticFeedback",
+    "xrGetVisibilityMaskKHR",
+]
+
 supported_handles = [
     "XrAction",
     "XrActionSet",
@@ -513,6 +576,7 @@ def is_an_xr_handle(type) :
 before_downchain = {}
 
 after_downchain_main = {}
+after_downchain_main_failed = {}
 
 in_destructor = {}
 
@@ -576,6 +640,10 @@ after_downchain_main["xrBeginSession"] = """
         auto l = mainSession->GetLock();
         mainSession->sessionState.DoCommand(OpenXRCommand::BEGIN_SESSION);
     }
+"""
+
+after_downchain_main_failed["xrEnumerateReferenceSpaces"] = """
+    *spaceCountOutput = 0;
 """
 
 after_downchain_main["xrDestroySession"] = """
@@ -3001,37 +3069,60 @@ for command_name in [c for c in supported_commands if c not in manually_implemen
         command_for_main_side = ""
 
     if handle_type in handles_needing_substitution:
-
-        call_actual_command = f"""
-    bool isProxied = {handle_name}Info->isProxied;
-    XrResult result;
-    if(isProxied) {{
-		OverlaysLayerLogMessage(XR_NULL_HANDLE, XR_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT, "xr{dispatch_command}", OverlaysLayerNoObjectInfo, "Call OverlaysLayer{dispatch_command}Overlay");
-        result = OverlaysLayer{dispatch_command}Overlay({handle_name}Info->parentInstance, {parameter_names});
-    }} else {{
-		OverlaysLayerLogMessage(XR_NULL_HANDLE, XR_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT, "xr{dispatch_command}", OverlaysLayerNoObjectInfo, "OverlaysLayer{dispatch_command}Main");
-        result = OverlaysLayer{dispatch_command}Main({handle_name}Info->parentInstance, {parameter_names});
-    }}
-	OverlaysLayerLogMessage(XR_NULL_HANDLE, XR_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT, "xr{dispatch_command}", OverlaysLayerNoObjectInfo, "Return OverlaysLayer{dispatch_command}");
-"""
+        if command_name in supported_overlay_commands:
+            call_actual_command = f"""
+        bool isProxied = {handle_name}Info->isProxied;
+        XrResult result;
+        if(isProxied) {{
+            OverlaysLayerLogMessage(XR_NULL_HANDLE, XR_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT, "xr{dispatch_command}", OverlaysLayerNoObjectInfo, "Call OverlaysLayer{dispatch_command}Overlay");
+            result = OverlaysLayer{dispatch_command}Overlay({handle_name}Info->parentInstance, {parameter_names});
+        }} else {{
+            OverlaysLayerLogMessage(XR_NULL_HANDLE, XR_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT, "xr{dispatch_command}", OverlaysLayerNoObjectInfo, "OverlaysLayer{dispatch_command}Main");
+            result = OverlaysLayer{dispatch_command}Main({handle_name}Info->parentInstance, {parameter_names});
+        }}
+        OverlaysLayerLogMessage(XR_NULL_HANDLE, XR_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT, "xr{dispatch_command}", OverlaysLayerNoObjectInfo, "Return OverlaysLayer{dispatch_command}");
+    """
+        else:
+            call_actual_command = f"""
+        bool isProxied = false;
+        XrResult result;
+        if(isProxied) {{
+            OverlaysLayerLogMessage(XR_NULL_HANDLE, XR_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT, "xr{dispatch_command}", OverlaysLayerNoObjectInfo, "Call OverlaysLayer{dispatch_command}Overlay");
+            result = OverlaysLayer{dispatch_command}Overlay({handle_name}Info->parentInstance, {parameter_names});
+        }} else {{
+            OverlaysLayerLogMessage(XR_NULL_HANDLE, XR_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT, "xr{dispatch_command}", OverlaysLayerNoObjectInfo, "OverlaysLayer{dispatch_command}Main");
+            result = OverlaysLayer{dispatch_command}Main({handle_name}Info->parentInstance, {parameter_names});
+        }}
+        OverlaysLayerLogMessage(XR_NULL_HANDLE, XR_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT, "xr{dispatch_command}", OverlaysLayerNoObjectInfo, "Return OverlaysLayer{dispatch_command}");
+    """
     else:
         call_actual_command = f"""
-    XrResult result;
-    {{
-        auto synchronizeEveryProcLock = gSynchronizeEveryProc ? std::unique_lock<std::recursive_mutex>(gSynchronizeEveryProcMutex) : std::unique_lock<std::recursive_mutex>();
-
-        result = {handle_name}Info->downchain->{dispatch_command}({parameter_names});
-    }}
-"""
+        XrResult result;
+        {{
+            auto synchronizeEveryProcLock = gSynchronizeEveryProc ? std::unique_lock<std::recursive_mutex>(gSynchronizeEveryProcMutex) : std::unique_lock<std::recursive_mutex>();
+    
+            result = {handle_name}Info->downchain->{dispatch_command}({parameter_names});
+        }}
+    """
 
     if command_name in after_downchain_main:
         after_downchain_if_success = f"""
-    if(XR_SUCCEEDED(result)) {{
-        {after_downchain_main.get(command_name, "")}
-    }}
-"""
+        if(XR_SUCCEEDED(result)) {{
+            {after_downchain_main.get(command_name, "")}
+        }}
+    """
     else:
         after_downchain_if_success = ""
+    
+    if command_name in after_downchain_main_failed:
+        after_downchain_if_failed = f"""
+        if(!XR_SUCCEEDED(result)) {{
+            {after_downchain_main_failed.get(command_name, "")}
+        }}
+    """
+    else:
+        after_downchain_if_failed = ""
+        
 
     if command_is_destroy:
         special_case_postscript = f"    {handle_name}Info->Destroy();\n"
@@ -3053,6 +3144,8 @@ for command_name in [c for c in supported_commands if c not in manually_implemen
         {special_case_postscript}
 
         {after_downchain_if_success}
+        
+        {after_downchain_if_failed}
 
         return result;
 

@@ -66,8 +66,8 @@
 
 const char *kOverlayLayerName = "xr_extx_overlay";
 
-constexpr bool PrintDebugInfo = true;
-constexpr bool AlsoLogToFile = true;
+constexpr bool PrintDebugInfo = false;
+constexpr bool AlsoLogToFile = false;
 FILE *LogFile = nullptr;
 
 void LogToFile(const char *str)
@@ -850,11 +850,11 @@ bool OverlaySwapchain::CreateTextures(XrInstance instance, ID3D11Device *d3d11, 
             desc.Format = format;
         }
 
-        if (swapchainTextures[i] == NULL)
-        {
-            OverlaysLayerLogMessage(XR_NULL_HANDLE, XR_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT, "CreateTexture", OverlaysLayerNoObjectInfo, "Swap texture was null.");
-            continue;
-        }
+        // if (swapchainTextures[i] == NULL)
+        // {
+        //     OverlaysLayerLogMessage(XR_NULL_HANDLE, XR_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT, "CreateTexture", OverlaysLayerNoObjectInfo, "Swap texture was null.");
+        //     continue;
+        // }
 
         HRESULT result;
         if((result = d3d11->CreateTexture2D(&desc, NULL, &swapchainTextures[i])) != S_OK) {
@@ -3223,6 +3223,11 @@ XrResult OverlaysLayerReleaseSwapchainImageOverlay(XrInstance instance, XrSwapch
         return XR_ERROR_CALL_ORDER_INVALID;
     }
 
+    if (!releaseInfo)
+    {
+        return XR_ERROR_HANDLE_INVALID;
+    }
+
     auto& overlaySwapchain = swapchainInfo->overlaySwapchain;
 
     uint32_t beingReleased = overlaySwapchain->acquired[0];
@@ -4019,9 +4024,9 @@ XrResult OverlaysLayerSyncActionsAndGetStateMainAsOverlay(
         return XR_SESSION_NOT_FOCUSED;
     }
 
-    if(result != XR_SUCCESS) {
+    //if(result != XR_SUCCESS) {
         return result;
-    }
+    //}
 
     ActionGetInfoList actionsToGet;
 
@@ -4166,8 +4171,19 @@ XrResult OverlaysLayerSyncActionsOverlay(XrInstance parentInstance, XrSession se
 
             for(auto fullBindingPath: fullBindingPaths) {
 
-                // XXX really should find() this - could be path from an extension
-                XrPath bindingSubactionPath = instanceInfo->OverlaysLayerBindingToSubaction.at(fullBindingPath); // This .at() must succeed; adding new binding paths would require enabling an extension which API Layer doesn't support
+                // // XXX really should find() this - could be path from an extension
+                // XrPath bindingSubactionPath = instanceInfo->OverlaysLayerBindingToSubaction.at(fullBindingPath); // This .at() must succeed; adding new binding paths would require enabling an extension which API Layer doesn't support
+                
+                auto findIterator = instanceInfo->OverlaysLayerBindingToSubaction.find(fullBindingPath);
+                if (findIterator == instanceInfo->OverlaysLayerBindingToSubaction.end())
+                {
+                    OverlaysLayerLogMessage(parentInstance, XR_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT, "xrSyncActions",
+                                OverlaysLayerNoObjectInfo,
+                                fmt("Could not find binding path -> ignore %s", PathToString(parentInstance, fullBindingPath)).c_str());
+                    continue;
+                }
+                                
+                XrPath bindingSubactionPath = findIterator->second;
 
                 for(auto subactionPath: subactionPaths) {
 
