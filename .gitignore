@@ -48,3 +48,4 @@ vendored
 *.exe
 *.out
 *.app
+CMakeCache.txt
