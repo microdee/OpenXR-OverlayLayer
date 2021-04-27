@@ -63,9 +63,9 @@ set_target_properties(OverlaySample PROPERTIES CXX_STANDARD 17)
 set_property(TARGET OverlaySample
   APPEND PROPERTY INCLUDE_DIRECTORIES
   $<$<CONFIG:Debug>:
-    ${CMAKE_SOURCE_DIR}/external_headers>
+    ${EXTERNAL_HEADERS_DIR}>
   $<$<CONFIG:Release>:
-    ${CMAKE_SOURCE_DIR}/external_headers>
+    ${EXTERNAL_HEADERS_DIR}>
 )
 
 # Preprocessor definitions

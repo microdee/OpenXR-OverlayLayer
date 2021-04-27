@@ -42,12 +42,14 @@ if(NOT OPENXR_LIB_DIR)
             "Set OPENXR_LIB_DIR to desired built openxr loader"
     )
 endif()
+
 set(OPENXR_INCLUDE_DIR ${OPENXR_SDK_SOURCE_ROOT}/include/openxr)
+set(EXTERNAL_HEADERS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external_headers)
 
 project(XR_overlay)
 
-add_subdirectory(overlay-sample)
 add_subdirectory(api-layer)
+add_subdirectory(overlay-sample)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "CMake targets")

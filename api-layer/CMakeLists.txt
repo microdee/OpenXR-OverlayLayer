@@ -126,9 +126,9 @@ target_include_directories(xr_extx_overlay
 # set_property(TARGET xr_extx_overlay
 # APPEND PROPERTY INCLUDE_DIRECTORIES
 # $<$<CONFIG:Debug>:
-# ${CMAKE_SOURCE_DIR}/external_headers>
+# ${EXTERNAL_HEADERS_DIR}>
 # $<$<CONFIG:Release>:
-# ${CMAKE_SOURCE_DIR}/external_headers>
+# ${EXTERNAL_HEADERS_DIR}>
 # )
 
 # Preprocessor definitions
