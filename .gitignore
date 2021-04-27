@@ -49,3 +49,4 @@ vendored
 *.out
 *.app
 CMakeCache.txt
+CMakeFiles
