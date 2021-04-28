@@ -175,3 +175,5 @@ endif()
 
 set_property(TARGET xr_extx_overlay PROPERTY CXX_STANDARD 17)
 
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/xr_extx_overlay.json DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+

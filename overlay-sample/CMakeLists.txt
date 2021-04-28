@@ -127,7 +127,22 @@ if(WIN32)
     add_definitions(-DXR_USE_GRAPHICS_API_D3D12)
 endif()
 
-file(COPY assets/avatar1.png DESTINATION ${CMAKE_BINARY_DIR}/overlay-sample)
-file(COPY assets/avatar2.png DESTINATION ${CMAKE_BINARY_DIR}/overlay-sample)
-file(COPY assets/highlighted1.png DESTINATION ${CMAKE_BINARY_DIR}/overlay-sample)
-file(COPY assets/selected1.png DESTINATION ${CMAKE_BINARY_DIR}/overlay-sample)
+add_custom_target(OverlaySampleCopyAssets)
+
+set(SAMPLE_ASSETS
+  ${FREEIMAGE_ROOT}/FreeImage.dll
+  ${FREEIMAGE_ROOT}/FreeImaged.dll
+  ${FREEIMAGEPLUS_ROOT}/FreeImagePlus.dll
+  ${FREEIMAGEPLUS_ROOT}/FreeImagePlusd.dll
+  ${CMAKE_CURRENT_SOURCE_DIR}/assets/avatar1.png
+  ${CMAKE_CURRENT_SOURCE_DIR}/assets/avatar2.png
+  ${CMAKE_CURRENT_SOURCE_DIR}/assets/highlighted1.png
+  ${CMAKE_CURRENT_SOURCE_DIR}/assets/selected1.png
+)
+
+foreach(ASSET ${SAMPLE_ASSETS})
+  add_custom_command(
+    TARGET OverlaySampleCopyAssets
+    COMMAND ${CMAKE_COMMAND} -E copy ${ASSET} $<TARGET_FILE_DIR:OverlaySample>
+  )
+endforeach()
