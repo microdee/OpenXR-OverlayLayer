@@ -50,6 +50,14 @@ add_executable(OverlaySample
   overlay_sample.cpp
 )
 
+target_include_directories(OverlaySample
+  SYSTEM
+  PRIVATE
+  ${OPENXR_SDK_SOURCE_ROOT}/include
+  ${OPENXR_SDK_SOURCE_ROOT}/src/common
+  ${OPENXR_SDK_SOURCE_ROOT}/build/include
+)
+
 target_include_directories(OverlaySample SYSTEM PRIVATE ${FREEIMAGE_INCLUDE_DIRS})
 target_link_libraries(OverlaySample PRIVATE ${FREEIMAGE_LIBRARIES})
 
