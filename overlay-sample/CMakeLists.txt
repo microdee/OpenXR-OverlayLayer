@@ -23,7 +23,7 @@
 # Author: Dave Houlton <daveh@lunarg.com>
 #
 
-cmake_minimum_required(VERSION 3.12.2)
+cmake_minimum_required(VERSION 3.14.2)
 
 project(OverlaySample)
 
@@ -93,6 +93,14 @@ if (MSVC)
   target_compile_options(OverlaySample PRIVATE
     "$<$<CONFIG:Debug>:/Gm->"
     "$<$<CONFIG:Release>:/Gm->"
+  )
+  set(OXR_SAMPLE_DEBUG_ENVIRONMENT
+    "XR_ENABLE_API_LAYERS=xr_extx_overlay\nXR_API_LAYER_PATH=$(SolutionDir)\\Common\\OpenXR-OverlayLayer\\api-layer\nXR_RUNTIME_JSON=$(ProgramW6432)\\Oculus\\Support\\oculus-runtime\\oculus_openxr_64.json"
+  )
+  
+  set_target_properties(OverlaySample PROPERTIES
+    VS_DEBUGGER_ENVIRONMENT ${OXR_SAMPLE_DEBUG_ENVIRONMENT}
+    VS_DEBUGGER_WORKING_DIRECTORY "$(TargetDir)"
   )
 endif ()
 
