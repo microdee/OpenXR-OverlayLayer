@@ -104,6 +104,20 @@ add_library(xr_extx_overlay SHARED
     ${GENERATED_OUTPUT}
 )
 
+if(${XR_WITH_IMGUI})
+    add_subdirectory(imgui)
+    target_link_libraries(xr_extx_overlay
+        imgui
+    )
+    target_compile_definitions(xr_extx_overlay PUBLIC
+        XR_EXTX_OVERLAY_WITH_IMGUI=1
+    )
+else()
+    target_compile_definitions(xr_extx_overlay PUBLIC
+        XR_EXTX_OVERLAY_WITH_IMGUI=0
+    )
+endif()
+
 target_include_directories(xr_extx_overlay
     PRIVATE
     ${OPENXR_SDK_SOURCE_ROOT}/src/common

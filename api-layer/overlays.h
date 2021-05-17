@@ -1053,4 +1053,11 @@ XrResult OverlaysLayerDestroyActionOverlay(XrInstance instance, XrAction action)
 XrResult OverlaysLayerGetVisibilityMaskKHRMainAsOverlay(ConnectionToOverlay::Ptr connection, XrSession session, XrViewConfigurationType viewConfigurationType, uint32_t viewIndex, XrVisibilityMaskTypeKHR visibilityMaskType, XrVisibilityMaskKHR* visibilityMask);
 XrResult OverlaysLayerGetVisibilityMaskKHROverlay(XrInstance instance, XrSession session, XrViewConfigurationType viewConfigurationType, uint32_t viewIndex, XrVisibilityMaskTypeKHR visibilityMaskType, XrVisibilityMaskKHR* visibilityMask);
 
+#if XR_EXTX_OVERLAY_WITH_IMGUI
+void InitImgui(ID3D11Device* inDevice, ID3D11DeviceContext* inDeviceCtx, const wchar_t* inTitle);
+void ImguiBeginFrame();
+void ImguiEndFrame();
+
+#endif
+
 #endif /* _OVERLAYS_H_ */

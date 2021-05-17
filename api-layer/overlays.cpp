@@ -54,6 +54,148 @@
 #include <d3d11_4.h>
 //#include <d3d12.h>
 
+#define IMGUI_IN_OVERLAY_LAYER 1 && XR_EXTX_OVERLAY_WITH_IMGUI
+#define IMGUI_IN_MAIN_AS_OVERLAY 1 && XR_EXTX_OVERLAY_WITH_IMGUI
+#define IMGUI_IN_MAIN 1 && XR_EXTX_OVERLAY_WITH_IMGUI
+
+#if XR_EXTX_OVERLAY_WITH_IMGUI
+
+#include "imgui.h"
+#include "imgui_impl_win32.h"
+#include "imgui_impl_dx11.h"
+
+LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+// Forward declare message handler from imgui_impl_win32.cpp
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+void InitImgui(ID3D11Device* inDevice, const wchar_t* inTitle)
+{
+    // Imgui requires a window to work, even if we will only use floating viewports (standalone ImGui windows)
+    WNDCLASSEX wc = {
+        sizeof(WNDCLASSEX),
+        CS_CLASSDC, WndProc,
+        0L, 0L,
+        GetModuleHandle(NULL),
+        NULL,
+        NULL,
+         NULL,
+        NULL,
+        inTitle,
+        NULL
+    };
+    ::RegisterClassEx(&wc);
+    HWND hwnd = ::CreateWindow(
+        wc.lpszClassName,
+        inTitle,
+        WS_OVERLAPPEDWINDOW,
+        0, 0, 1, 1,
+        NULL,
+        NULL,
+        wc.hInstance,
+        NULL
+    );
+    // Removing borders and hiding it from Alt+Tab and from the taskbar
+    ::SetWindowLong(hwnd, GWL_STYLE, 0);
+    ::SetWindowLong(hwnd, GWL_EXSTYLE, WS_EX_TOOLWINDOW);
+    // Position our pretend window somewhere sensible for Ctrl+Tab window switching
+    ::SetWindowPos(
+        hwnd, 0,
+        100,
+        100,
+        // "hide" our window
+        0, 0,
+        SWP_FRAMECHANGED | SWP_NOACTIVATE
+    );
+
+    // Show the window
+    // It is still needed in order to receive mouse button messages
+    ::ShowWindow(hwnd, SW_SHOWDEFAULT);
+    ::UpdateWindow(hwnd);
+
+    // Setup Dear ImGui context
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;       // Enable Keyboard Controls
+    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;           // Enable Docking
+    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;         // Enable Multi-Viewport / Platform Windows
+    io.ConfigViewportsNoAutoMerge = true;
+    //io.ConfigViewportsNoTaskBarIcon = true;
+    io.ConfigViewportsNoDefaultParent = true;
+    //io.ConfigDockingAlwaysTabBar = true;
+    io.ConfigDockingTransparentPayload = true;
+    io.ConfigFlags |= ImGuiConfigFlags_DpiEnableScaleFonts;     // FIXME-DPI: THIS CURRENTLY DOESN'T WORK AS EXPECTED. DON'T USE IN USER APP!
+    io.ConfigFlags |= ImGuiConfigFlags_DpiEnableScaleViewports; // FIXME-DPI
+    ImGui::StyleColorsDark();
+    ImGuiStyle& style = ImGui::GetStyle();
+    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+    {
+        style.WindowRounding = 0.0f;
+        style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+    }
+
+    // Setup ImGui Platform/Renderer backends
+    ImGui_ImplWin32_Init(hwnd);
+
+    ID3D11DeviceContext* devCtx;
+    inDevice->GetImmediateContext(&devCtx);
+
+    ImGui_ImplDX11_Init(inDevice, devCtx);
+}
+
+// Win32 message handler
+LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam))
+        return true;
+
+    switch (msg)
+    {
+    case WM_SYSCOMMAND:
+        if ((wParam & 0xfff0) == SC_KEYMENU) // Disable ALT application menu
+            return 0;
+        break;
+    case WM_DESTROY:
+        ::PostQuitMessage(0);
+        return 0;
+    case WM_DPICHANGED:
+        if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_DpiEnableScaleViewports)
+        {
+            //const int dpi = HIWORD(wParam);
+            //printf("WM_DPICHANGED to %d (%.0f%%)\n", dpi, (float)dpi / 96.0f * 100.0f);
+            const RECT* suggested_rect = (RECT*)lParam;
+            ::SetWindowPos(hWnd, NULL, suggested_rect->left, suggested_rect->top, suggested_rect->right - suggested_rect->left, suggested_rect->bottom - suggested_rect->top, SWP_NOZORDER | SWP_NOACTIVATE);
+        }
+        break;
+    }
+    return ::DefWindowProc(hWnd, msg, wParam, lParam);
+}
+
+void ImguiBeginFrame()
+{
+    ImGui_ImplDX11_NewFrame();
+    ImGui_ImplWin32_NewFrame();
+    ImGui::NewFrame();
+}
+
+void ImguiEndFrame()
+{
+    ImGui::Render();
+    ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+
+    ImGui::UpdatePlatformWindows();
+    ImGui::RenderPlatformWindowsDefault();
+}
+
+void ShutdownImgui()
+{
+    ImGui_ImplDX11_Shutdown();
+    ImGui_ImplWin32_Shutdown();
+    ImGui::DestroyContext();
+}
+#endif
 
 
 #if defined(__GNUC__) && __GNUC__ >= 4
@@ -1575,6 +1717,10 @@ XrResult OverlaysLayerCreateSessionMainAsOverlay(ConnectionToOverlay::Ptr connec
                     return XR_ERROR_INITIALIZATION_FAILED;
                 }
 
+                #if IMGUI_IN_MAIN_AS_OVERLAY
+                    InitImgui(d3dbinding->device, L"OpenXR Main as Overlay layer debug GUI");
+                #endif
+
                 break;
             }
 
@@ -1892,6 +2038,10 @@ XrResult OverlaysLayerCreateSessionMain(XrInstance instance, const XrSessionCrea
             OverlaysLayerNoObjectInfo, fmt("Could not initialize the Main App listener thread.").c_str());
         return XR_ERROR_INITIALIZATION_FAILED;
     }
+
+    #if IMGUI_IN_MAIN
+        InitImgui(d3d11Device, L"OpenXR Main layer debug GUI");
+    #endif
     return xrresult;
 }
 
@@ -2037,6 +2187,10 @@ XrResult OverlaysLayerCreateSessionOverlay(
 
     OverlaysLayerAddHandleInfoForXrSession(localHandle, info);
     instanceInfo->childSessions.insert(info);
+
+    #if IMGUI_IN_OVERLAY_LAYER
+        InitImgui(d3d11Device, L"OpenXR Overlay layer debug GUI");
+    #endif
 
     return result;
 }
@@ -2630,6 +2784,10 @@ XrResult OverlaysLayerDestroySessionMainAsOverlay(ConnectionToOverlay::Ptr conne
     /* XXX DEBUG REMOVE THIS */ OverlaysLayerLogMessage(XR_NULL_HANDLE, XR_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT, __func__, OverlaysLayerNoObjectInfo, fmt("Enter, thread %ld", GetCurrentThreadId()).c_str());
     OverlaysLayerXrSessionHandleInfo::Ptr sessionInfo = OverlaysLayerGetHandleInfoFromXrSession(session);
 
+    #if IMGUI_IN_MAIN_AS_OVERLAY
+        ShutdownImgui();
+    #endif
+
     connection->closed = true;
 
     return XR_SUCCESS;
@@ -2639,6 +2797,10 @@ XrResult OverlaysLayerDestroySessionOverlay(XrInstance instance, XrSession sessi
 {
     /* XXX DEBUG REMOVE THIS */ OverlaysLayerLogMessage(XR_NULL_HANDLE, XR_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT, __func__, OverlaysLayerNoObjectInfo, fmt("Enter, thread %ld", GetCurrentThreadId()).c_str());
     OverlaysLayerXrSessionHandleInfo::Ptr sessionInfo = OverlaysLayerGetHandleInfoFromXrSession(session);
+
+    #if IMGUI_IN_OVERLAY_LAYER
+        ShutdownImgui();
+    #endif
 
     XrResult result = RPCCallDestroySession(instance, sessionInfo->actualHandle);
 
@@ -3067,6 +3229,10 @@ XrResult OverlaysLayerBeginFrameMainAsOverlay(ConnectionToOverlay::Ptr connectio
 
     auto l = connection->GetLock();
 
+    #if IMGUI_IN_MAIN_AS_OVERLAY
+        ImguiBeginFrame();
+    #endif
+
     // At this time xrBeginFrame has no inputs and returns nothing.
     //auto beginInfoCopy = GetSharedCopyHandlesRestored(sessionInfo->parentInstance, "xrBeginFrame", beginInfo);
 
@@ -3085,6 +3251,10 @@ XrResult OverlaysLayerBeginFrameOverlay(XrInstance instance, XrSession session, 
     if(!XR_SUCCEEDED(result)) {
         return result;
     }
+
+    #if IMGUI_IN_OVERLAY_LAYER
+        ImguiBeginFrame();
+    #endif
 
     return result;
 }
@@ -3323,6 +3493,10 @@ XrResult OverlaysLayerEndFrameMainAsOverlay(ConnectionToOverlay::Ptr connection,
 
     XrResult result = XR_SUCCESS;
 
+    #if IMGUI_IN_MAIN_AS_OVERLAY
+        ImguiEndFrame();
+    #endif
+
     // TODO: validate blend mode matches main session
     //
     {
@@ -3362,6 +3536,10 @@ XrResult OverlaysLayerEndFrameOverlay(XrInstance instance, XrSession session, co
 {
     /* XXX DEBUG REMOVE THIS */ OverlaysLayerLogMessage(XR_NULL_HANDLE, XR_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT, __func__, OverlaysLayerNoObjectInfo, fmt("Enter, thread %ld", GetCurrentThreadId()).c_str());
     OverlaysLayerXrSessionHandleInfo::Ptr sessionInfo = OverlaysLayerGetHandleInfoFromXrSession(session);
+
+    #if IMGUI_IN_OVERLAY_LAYER
+        ImguiEndFrame();
+    #endif
 
     auto frameEndInfoCopy = GetSharedCopyHandlesRestored(instance, "xrEndFrame", frameEndInfo);
 
@@ -3412,6 +3590,10 @@ XrResult OverlaysLayerEndFrameMain(XrInstance parentInstance, XrSession session,
 {
     /* XXX DEBUG REMOVE THIS */ OverlaysLayerLogMessage(XR_NULL_HANDLE, XR_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT, __func__, OverlaysLayerNoObjectInfo, fmt("Enter, thread %ld", GetCurrentThreadId()).c_str());
     auto synchronizeEveryProcLock = gSynchronizeEveryProc ? std::unique_lock<std::recursive_mutex>(gSynchronizeEveryProcMutex) : std::unique_lock<std::recursive_mutex>();
+
+    #if IMGUI_IN_MAIN
+        ImguiEndFrame();
+    #endif
 
     std::unique_lock<std::recursive_mutex> EndFrameLock(EndFrameMutex);
     OverlaysLayerXrSessionHandleInfo::Ptr sessionInfo = OverlaysLayerGetHandleInfoFromXrSession(session);
