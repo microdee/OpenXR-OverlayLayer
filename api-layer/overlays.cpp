@@ -21,6 +21,7 @@
 // Author: Brad Grantham <brad@lunarg.com>
 
 
+// ReSharper disable CppUE4CodingStandardNamingViolationWarning
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif  // !NOMINMAX
@@ -54,9 +55,9 @@
 #include <d3d11_4.h>
 //#include <d3d12.h>
 
-#define IMGUI_IN_OVERLAY_LAYER 1 && XR_EXTX_OVERLAY_WITH_IMGUI
+#define IMGUI_IN_OVERLAY_LAYER 0 && XR_EXTX_OVERLAY_WITH_IMGUI
 #define IMGUI_IN_MAIN_AS_OVERLAY 1 && XR_EXTX_OVERLAY_WITH_IMGUI
-#define IMGUI_IN_MAIN 1 && XR_EXTX_OVERLAY_WITH_IMGUI
+#define IMGUI_IN_MAIN 0 && XR_EXTX_OVERLAY_WITH_IMGUI
 
 #if XR_EXTX_OVERLAY_WITH_IMGUI
 
@@ -64,85 +65,158 @@
 #include "imgui_impl_win32.h"
 #include "imgui_impl_dx11.h"
 
+// ech
+IDXGISwapChain* g_imguiSwapchain = NULL;
+ID3D11Texture2D* g_imguiBackbuffer = NULL;
+ID3D11RenderTargetView* g_imguiRtv = NULL;
+
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 // Forward declare message handler from imgui_impl_win32.cpp
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
+template< typename T = std::string >
+void CheckHR(HRESULT hr, T&& msg = {})
+{
+    if (FAILED(hr))
+    {
+        DebugBreak();
+        throw std::system_error{ hr, std::system_category(), std::forward<T>(msg) };
+    }
+}
+
 void InitImgui(ID3D11Device* inDevice, const wchar_t* inTitle)
 {
-    // Imgui requires a window to work, even if we will only use floating viewports (standalone ImGui windows)
+    try
+    {
+        auto hwnd = ImguiCreateWindow(inTitle);
+        ImguiCreateSwapchain(inDevice, hwnd);
+
+        // Show the window
+        // It is still needed in order to receive mouse button messages
+        ::ShowWindow(hwnd, SW_SHOWDEFAULT);
+        ::UpdateWindow(hwnd);
+
+        // Setup Dear ImGui context
+        IMGUI_CHECKVERSION();
+        ImGui::CreateContext();
+        ImGuiIO& io = ImGui::GetIO(); (void)io;
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;       // Enable Keyboard Controls
+        //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+        io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;           // Enable Docking
+        io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;         // Enable Multi-Viewport / Platform Windows
+        io.ConfigViewportsNoAutoMerge = true;
+        //io.ConfigViewportsNoTaskBarIcon = true;
+        io.ConfigViewportsNoDefaultParent = true;
+        //io.ConfigDockingAlwaysTabBar = true;
+        io.ConfigDockingTransparentPayload = true;
+        io.ConfigFlags |= ImGuiConfigFlags_DpiEnableScaleFonts;     // FIXME-DPI: THIS CURRENTLY DOESN'T WORK AS EXPECTED. DON'T USE IN USER APP!
+        io.ConfigFlags |= ImGuiConfigFlags_DpiEnableScaleViewports; // FIXME-DPI
+        ImGui::StyleColorsDark();
+        ImGuiStyle& style = ImGui::GetStyle();
+        if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+        {
+            style.WindowRounding = 0.0f;
+            style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+        }
+
+        // Setup ImGui Platform/Renderer backends
+        ImGui_ImplWin32_Init(hwnd);
+
+        ID3D11DeviceContext* devCtx;
+        inDevice->GetImmediateContext(&devCtx);
+
+        ImGui_ImplDX11_Init(inDevice, devCtx);
+    }
+    catch(std::system_error e)
+    {
+        DebugBreak();
+        return;
+    }
+}
+
+void ImguiCreateSwapchain(ID3D11Device* inDevice, HWND hwnd)
+{
+    DXGI_SWAP_CHAIN_DESC1 sd;
+    ZeroMemory(&sd, sizeof(sd));
+    sd.BufferCount = 2;
+    sd.Width = 0;
+    sd.Height = 0;
+    sd.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    sd.Stereo = false;
+    sd.SampleDesc = { 1, 0 };
+    sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+    sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+    sd.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
+    sd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+
+    IDXGIDevice* dxgiDevice;
+    IDXGIFactory2* dxgiFactory;
+    IDXGIAdapter* dxgiAdapter;
+
+    CheckHR(inDevice->QueryInterface(&dxgiDevice));
+    CheckHR(dxgiDevice->GetParent(IID_PPV_ARGS(&dxgiAdapter)));
+    CheckHR(dxgiAdapter->GetParent(IID_PPV_ARGS(&dxgiFactory)));
+
+    IDXGISwapChain1* dxgiSwpc;
+
+    CheckHR(dxgiFactory->CreateSwapChainForHwnd(
+        inDevice,
+        hwnd,
+        &sd,
+        NULL, NULL,
+        &dxgiSwpc
+    ));
+
+    CheckHR(dxgiSwpc->QueryInterface(&g_imguiSwapchain));
+
+    dxgiDevice->Release();
+    dxgiFactory->Release();
+    dxgiAdapter->Release();
+    dxgiSwpc->Release();
+
+    ImguiCreateRTV(inDevice);
+}
+
+void ImguiCreateRTV(ID3D11Device* inDevice)
+{
+    ID3D11Texture2D* backBuffer;
+    g_imguiSwapchain->GetBuffer(0, IID_PPV_ARGS(&backBuffer));
+    inDevice->CreateRenderTargetView(backBuffer, NULL, &g_imguiRtv);
+    backBuffer->Release();
+}
+
+void ImguiCleanupRTV()
+{
+    if (g_imguiRtv) { g_imguiRtv->Release(); g_imguiRtv = NULL; }
+}
+
+HWND ImguiCreateWindow(const wchar_t* inTitle)
+{
     WNDCLASSEX wc = {
         sizeof(WNDCLASSEX),
-        CS_CLASSDC, WndProc,
-        0L, 0L,
+        CS_CLASSDC,
+        WndProc,
+        0L,
+        0L,
         GetModuleHandle(NULL),
         NULL,
         NULL,
-         NULL,
+        NULL,
         NULL,
         inTitle,
         NULL
     };
     ::RegisterClassEx(&wc);
-    HWND hwnd = ::CreateWindow(
+    return ::CreateWindow(
         wc.lpszClassName,
         inTitle,
         WS_OVERLAPPEDWINDOW,
-        0, 0, 1, 1,
-        NULL,
-        NULL,
+        100, 100, 1280, 800,
+        NULL, NULL,
         wc.hInstance,
         NULL
     );
-    // Removing borders and hiding it from Alt+Tab and from the taskbar
-    ::SetWindowLong(hwnd, GWL_STYLE, 0);
-    ::SetWindowLong(hwnd, GWL_EXSTYLE, WS_EX_TOOLWINDOW);
-    // Position our pretend window somewhere sensible for Ctrl+Tab window switching
-    ::SetWindowPos(
-        hwnd, 0,
-        100,
-        100,
-        // "hide" our window
-        0, 0,
-        SWP_FRAMECHANGED | SWP_NOACTIVATE
-    );
-
-    // Show the window
-    // It is still needed in order to receive mouse button messages
-    ::ShowWindow(hwnd, SW_SHOWDEFAULT);
-    ::UpdateWindow(hwnd);
-
-    // Setup Dear ImGui context
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;       // Enable Keyboard Controls
-    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;           // Enable Docking
-    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;         // Enable Multi-Viewport / Platform Windows
-    io.ConfigViewportsNoAutoMerge = true;
-    //io.ConfigViewportsNoTaskBarIcon = true;
-    io.ConfigViewportsNoDefaultParent = true;
-    //io.ConfigDockingAlwaysTabBar = true;
-    io.ConfigDockingTransparentPayload = true;
-    io.ConfigFlags |= ImGuiConfigFlags_DpiEnableScaleFonts;     // FIXME-DPI: THIS CURRENTLY DOESN'T WORK AS EXPECTED. DON'T USE IN USER APP!
-    io.ConfigFlags |= ImGuiConfigFlags_DpiEnableScaleViewports; // FIXME-DPI
-    ImGui::StyleColorsDark();
-    ImGuiStyle& style = ImGui::GetStyle();
-    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
-    {
-        style.WindowRounding = 0.0f;
-        style.Colors[ImGuiCol_WindowBg].w = 1.0f;
-    }
-
-    // Setup ImGui Platform/Renderer backends
-    ImGui_ImplWin32_Init(hwnd);
-
-    ID3D11DeviceContext* devCtx;
-    inDevice->GetImmediateContext(&devCtx);
-
-    ImGui_ImplDX11_Init(inDevice, devCtx);
 }
 
 // Win32 message handler
@@ -153,6 +227,17 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
     switch (msg)
     {
+    case WM_SIZE:
+        if (g_imguiRtv != NULL && wParam != SIZE_MINIMIZED)
+        {
+            ID3D11Device* d3dDevice;
+            g_imguiRtv->GetDevice(&d3dDevice);
+            ImguiCleanupRTV();
+            g_imguiSwapchain->ResizeBuffers(0, (UINT)LOWORD(lParam), (UINT)HIWORD(lParam), DXGI_FORMAT_UNKNOWN, 0);
+            ImguiCreateRTV(d3dDevice);
+            d3dDevice->Release();
+        }
+        return 0;
     case WM_SYSCOMMAND:
         if ((wParam & 0xfff0) == SC_KEYMENU) // Disable ALT application menu
             return 0;
@@ -180,13 +265,29 @@ void ImguiBeginFrame()
     ImGui::NewFrame();
 }
 
-void ImguiEndFrame()
+void ImguiEndFrame(ID3D11DeviceContext* ctx)
 {
+    static float clearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
     ImGui::Render();
+    
+    ID3D11RenderTargetView* currRtv;
+    ID3D11DepthStencilView* currDsv;
+
+    ctx->OMGetRenderTargets(1, &currRtv, &currDsv);
+    ctx->OMSetRenderTargets(1, &g_imguiRtv, NULL);
+    ctx->ClearRenderTargetView(g_imguiRtv, clearColor);
+
     ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 
     ImGui::UpdatePlatformWindows();
     ImGui::RenderPlatformWindowsDefault();
+
+    if(currRtv)
+    {
+        ctx->OMSetRenderTargets(1, &currRtv, currDsv);
+        currRtv->Release();
+        currDsv->Release();
+    }
 }
 
 void ShutdownImgui()
@@ -1112,6 +1213,17 @@ OptionalSessionStateChange SessionStateTracker::GetAndDoPendingStateChange(MainS
     return OptionalSessionStateChange { false, XR_SESSION_STATE_UNKNOWN };
 }
 
+CachedSwapchainImage::~CachedSwapchainImage()
+{
+    if (swapchainImage) swapchainImage->Release();
+    if (swapchainImageSrv) swapchainImage->Release();
+    if (swapchainImagePass) swapchainImagePass->Release();
+    if (swapchainImagePassSrv) swapchainImagePassSrv->Release();
+    swapchainImage = nullptr;
+    swapchainImageSrv = nullptr;
+    swapchainImagePass = nullptr;
+    swapchainImagePassSrv = nullptr;
+}
 
 SwapchainCachedData::~SwapchainCachedData()
 {
@@ -1132,9 +1244,6 @@ SwapchainCachedData::~SwapchainCachedData()
     for(auto shared : handleTextureMap) {
         shared.second->Release();
         CloseHandle(shared.first);
-    }
-    for(auto texture : swapchainImages) {
-        texture->Release();
     }
     handleTextureMap.clear();
 }
@@ -1717,10 +1826,6 @@ XrResult OverlaysLayerCreateSessionMainAsOverlay(ConnectionToOverlay::Ptr connec
                     return XR_ERROR_INITIALIZATION_FAILED;
                 }
 
-                #if IMGUI_IN_MAIN_AS_OVERLAY
-                    InitImgui(d3dbinding->device, L"OpenXR Main as Overlay layer debug GUI");
-                #endif
-
                 break;
             }
 
@@ -2256,6 +2361,10 @@ XrResult OverlaysLayerCreateSwapchainMainAsOverlay(ConnectionToOverlay::Ptr conn
     OverlaysLayerXrSessionHandleInfo::Ptr sessionInfo = OverlaysLayerGetHandleInfoFromXrSession(session);
 
     auto createInfoCopy = GetSharedCopyHandlesRestored(sessionInfo->parentInstance, "xrCreateSwapchain", createInfo);
+
+#if IMGUI_IN_MAIN_AS_OVERLAY
+    InitImgui(sessionInfo->d3d11Device, L"OpenXR Main as Overlay layer debug GUI");
+#endif
 
     XrResult result = sessionInfo->downchain->CreateSwapchain(sessionInfo->actualHandle, createInfoCopy.get(), swapchain);
 
@@ -3423,7 +3532,40 @@ XrResult OverlaysLayerReleaseSwapchainImageMainAsOverlay(ConnectionToOverlay::Pt
     sharedTexture->GetDevice(&d3dDevice);
     ID3D11DeviceContext* d3dContext;
     d3dDevice->GetImmediateContext(&d3dContext);
-    d3dContext->CopyResource(mainAsOverlaySwapchain->swapchainImages[which], sharedTexture);
+    d3dContext->CopyResource(mainAsOverlaySwapchain->swapchainImages[which].swapchainImage, sharedTexture);
+
+#if IMGUI_IN_MAIN_AS_OVERLAY
+    if(!mainAsOverlaySwapchain->swapchainImages[which].swapchainImageSrv)
+    {
+        D3D11_TEXTURE2D_DESC texDesc;
+        sharedTexture->GetDesc(&texDesc);
+        D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
+        srvDesc.Format = texDesc.Format;
+        srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+        srvDesc.Texture2D.MipLevels = texDesc.MipLevels;
+        srvDesc.Texture2D.MostDetailedMip = 0;
+        d3dDevice->CreateShaderResourceView(
+            sharedTexture,
+            &srvDesc,
+            &mainAsOverlaySwapchain->swapchainImages[which].swapchainImageSrv
+        );
+    }
+    ImGui::SetNextWindowSize({ 800, 800 }, ImGuiCond_Once);
+    ImGui::Begin("OpenXR Overlay Preview");
+    {
+        ImGui::Text("Released Swapchain:");
+        ImGui::Image(
+            mainAsOverlaySwapchain->swapchainImages[which].swapchainImageSrv,
+            {
+                ImGui::GetContentRegionAvailWidth(),
+                ImGui::GetContentRegionAvailWidth() * 0.5625f
+            }
+        );
+    }
+    ImGui::End();
+
+    ImguiEndFrame(d3dContext);
+#endif
 
     auto releaseInfoCopy = GetSharedCopyHandlesRestored(swapchainInfo->parentInstance, "xrReleaseSwapchainImage", releaseInfo);
 
@@ -3494,7 +3636,7 @@ XrResult OverlaysLayerEndFrameMainAsOverlay(ConnectionToOverlay::Ptr connection,
     XrResult result = XR_SUCCESS;
 
     #if IMGUI_IN_MAIN_AS_OVERLAY
-        ImguiEndFrame();
+        // ImguiEndFrame();
     #endif
 
     // TODO: validate blend mode matches main session
@@ -3538,7 +3680,7 @@ XrResult OverlaysLayerEndFrameOverlay(XrInstance instance, XrSession session, co
     OverlaysLayerXrSessionHandleInfo::Ptr sessionInfo = OverlaysLayerGetHandleInfoFromXrSession(session);
 
     #if IMGUI_IN_OVERLAY_LAYER
-        ImguiEndFrame();
+        //ImguiEndFrame();
     #endif
 
     auto frameEndInfoCopy = GetSharedCopyHandlesRestored(instance, "xrEndFrame", frameEndInfo);
@@ -3592,7 +3734,7 @@ XrResult OverlaysLayerEndFrameMain(XrInstance parentInstance, XrSession session,
     auto synchronizeEveryProcLock = gSynchronizeEveryProc ? std::unique_lock<std::recursive_mutex>(gSynchronizeEveryProcMutex) : std::unique_lock<std::recursive_mutex>();
 
     #if IMGUI_IN_MAIN
-        ImguiEndFrame();
+        //ImguiEndFrame();
     #endif
 
     std::unique_lock<std::recursive_mutex> EndFrameLock(EndFrameMutex);

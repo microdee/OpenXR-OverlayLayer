@@ -469,6 +469,16 @@ struct MainSessionSessionState : public SessionStateTracker
 
 };
 
+struct CachedSwapchainImage
+{
+    ID3D11Texture2D* swapchainImage = nullptr;
+    ID3D11ShaderResourceView* swapchainImageSrv = nullptr;
+    ID3D11Texture2D* swapchainImagePass = nullptr;
+    ID3D11ShaderResourceView* swapchainImagePassSrv = nullptr;
+
+    ~CachedSwapchainImage();
+};
+
 // Bookkeeping of SwapchainImages for copying remote SwapchainImages on ReleaseSwapchainImage
 struct SwapchainCachedData
 {
@@ -478,17 +488,22 @@ struct SwapchainCachedData
     };
 
     XrSwapchain swapchain;
-    std::vector<ID3D11Texture2D*> swapchainImages;
+    std::vector<CachedSwapchainImage> swapchainImages;
     std::set<HANDLE> remoteImagesAcquired;
     std::unordered_map<HANDLE, ID3D11Texture2D*> handleTextureMap;
-    std::vector<uint32_t>   acquired;
+    std::vector<uint32_t> acquired;
 
     SwapchainCachedData(XrSwapchain swapchain_, const std::vector<ID3D11Texture2D*>& swapchainImages_) :
-        swapchain(swapchain_),
-        swapchainImages(swapchainImages_)
+        swapchain(swapchain_)
     {
+        swapchainImages.resize(swapchainImages_.size());
+        std::transform(
+            swapchainImages_.begin(), swapchainImages_.end(), swapchainImages.begin(),
+            [&](ID3D11Texture2D* t) -> CachedSwapchainImage { return std::move(CachedSwapchainImage{t}); }
+        );
+
         for(auto texture : swapchainImages) {
-            texture->AddRef();
+            texture.swapchainImage->AddRef();
         }
     }
 
@@ -625,7 +640,6 @@ struct OverlaySwapchain
     int                     width;
     int                     height;
     DXGI_FORMAT             format;
-
 
     OverlaySwapchain(XrSwapchain sc, size_t count, const XrSwapchainCreateInfo* createInfo) :
         swapchain(sc),
@@ -1055,9 +1069,14 @@ XrResult OverlaysLayerGetVisibilityMaskKHROverlay(XrInstance instance, XrSession
 
 #if XR_EXTX_OVERLAY_WITH_IMGUI
 void InitImgui(ID3D11Device* inDevice, const wchar_t* inTitle);
+HWND ImguiCreateWindow(const wchar_t* inTitle);
+void ImguiCreateSwapchain(ID3D11Device* inDevice, HWND hwnd);
+void ImguiCreateRTV(ID3D11Device* inDevice);
+void ImguiCleanupRTV();
+
 void ShutdownImgui();
 void ImguiBeginFrame();
-void ImguiEndFrame();
+void ImguiEndFrame(ID3D11DeviceContext* ctx);
 
 #endif
 
