@@ -76,11 +76,20 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 template< typename T = std::string >
-void CheckHR(HRESULT hr, T&& msg = {})
+void AssertHR(HRESULT hr, T&& msg = {})
 {
     if (FAILED(hr))
     {
         DebugBreak();
+        throw std::system_error{ hr, std::system_category(), std::forward<T>(msg) };
+    }
+}
+
+template< typename T = std::string >
+void CheckHR(HRESULT hr, T&& msg = {})
+{
+    if (FAILED(hr))
+    {
         throw std::system_error{ hr, std::system_category(), std::forward<T>(msg) };
     }
 }
@@ -154,13 +163,13 @@ void ImguiCreateSwapchain(ID3D11Device* inDevice, HWND hwnd)
     IDXGIFactory2* dxgiFactory;
     IDXGIAdapter* dxgiAdapter;
 
-    CheckHR(inDevice->QueryInterface(&dxgiDevice));
-    CheckHR(dxgiDevice->GetParent(IID_PPV_ARGS(&dxgiAdapter)));
-    CheckHR(dxgiAdapter->GetParent(IID_PPV_ARGS(&dxgiFactory)));
+    AssertHR(inDevice->QueryInterface(&dxgiDevice));
+    AssertHR(dxgiDevice->GetParent(IID_PPV_ARGS(&dxgiAdapter)));
+    AssertHR(dxgiAdapter->GetParent(IID_PPV_ARGS(&dxgiFactory)));
 
     IDXGISwapChain1* dxgiSwpc;
 
-    CheckHR(dxgiFactory->CreateSwapChainForHwnd(
+    AssertHR(dxgiFactory->CreateSwapChainForHwnd(
         inDevice,
         hwnd,
         &sd,
@@ -168,7 +177,7 @@ void ImguiCreateSwapchain(ID3D11Device* inDevice, HWND hwnd)
         &dxgiSwpc
     ));
 
-    CheckHR(dxgiSwpc->QueryInterface(&g_imguiSwapchain));
+    AssertHR(dxgiSwpc->QueryInterface(&g_imguiSwapchain));
 
     dxgiDevice->Release();
     dxgiFactory->Release();
