@@ -105,6 +105,7 @@ void InitImgui(ID3D11Device* inDevice, const wchar_t* inTitle)
         // It is still needed in order to receive mouse button messages
         ::ShowWindow(hwnd, SW_SHOWDEFAULT);
         ::UpdateWindow(hwnd);
+        ::SetForegroundWindow(hwnd);
 
         // Setup Dear ImGui context
         IMGUI_CHECKVERSION();
@@ -290,6 +291,8 @@ void ImguiEndFrame(ID3D11DeviceContext* ctx)
 
     ImGui::UpdatePlatformWindows();
     ImGui::RenderPlatformWindowsDefault();
+
+    g_imguiSwapchain->Present(0, 0);
 
     if(currRtv)
     {
@@ -3572,32 +3575,64 @@ XrResult OverlaysLayerReleaseSwapchainImageMainAsOverlay(ConnectionToOverlay::Pt
     d3dContext->CopyResource(mainAsOverlaySwapchain->swapchainImages[which].swapchainImage, sharedTexture);
 
 #if IMGUI_IN_MAIN_AS_OVERLAY
-    if(!mainAsOverlaySwapchain->swapchainImages[which].swapchainImageSrv)
-    {
-        D3D11_TEXTURE2D_DESC texDesc;
-        sharedTexture->GetDesc(&texDesc);
-        D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
-        srvDesc.Format = texDesc.Format;
-        srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-        srvDesc.Texture2D.MipLevels = texDesc.MipLevels;
-        srvDesc.Texture2D.MostDetailedMip = 0;
-        d3dDevice->CreateShaderResourceView(
-            sharedTexture,
-            &srvDesc,
-            &mainAsOverlaySwapchain->swapchainImages[which].swapchainImageSrv
-        );
-    }
     ImGui::SetNextWindowSize({ 800, 800 }, ImGuiCond_Once);
     ImGui::Begin("OpenXR Overlay Preview");
     {
-        ImGui::Text("Released Swapchain:");
-        ImGui::Image(
-            mainAsOverlaySwapchain->swapchainImages[which].swapchainImageSrv,
+        ImGui::Text("Swapchain images:");
+        //for (auto& image : mainAsOverlaySwapchain->swapchainImages)
+        //{
+            ImGui::Separator();
+            if(!sharedTexture)
             {
-                ImGui::GetContentRegionAvailWidth(),
-                ImGui::GetContentRegionAvailWidth() * 0.5625f
+                ImGui::Text("Image was nullptr");
             }
-        );
+            D3D11_TEXTURE2D_DESC texDesc;
+            sharedTexture->GetDesc(&texDesc);
+
+            ImGui::Text("Width: %d\nHeight: %d\nFormat: %d", texDesc.Width, texDesc.Height, texDesc.Format);
+            ID3D11ShaderResourceView* sharedTextureSrv = NULL;
+            try
+            {
+                if (!sharedTextureSrv && sharedTexture)
+                {
+                    auto format = texDesc.Format;
+                    if(TypelessToTypedFormat.count(format) > 0)
+                    {
+                        format = TypelessToTypedFormat[format];
+                    }
+                    D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
+                    srvDesc.Format = format;
+                    srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+                    srvDesc.Texture2D.MipLevels = texDesc.MipLevels;
+                    srvDesc.Texture2D.MostDetailedMip = 0;
+                    CheckHR(d3dDevice->CreateShaderResourceView(
+                        sharedTexture,
+                        &srvDesc,
+                        &sharedTextureSrv
+                    ), "Couldn't create SRV");
+                }
+                if (sharedTextureSrv)
+                {
+                    ImGui::Image(
+                        sharedTextureSrv,
+                        {
+                            ImGui::GetContentRegionAvailWidth(),
+                            ImGui::GetContentRegionAvailWidth() * 0.5625f
+                        }
+                    );
+                }
+                else
+                {
+                    ImGui::Text("SRV was nullptr");
+                }
+            }
+            catch(std::system_error e)
+            {
+                ImGui::Text("%s (%d)", e.what(), e.code().value());
+            }
+            if(sharedTextureSrv)
+                sharedTextureSrv->Release();
+        //}
     }
     ImGui::End();
 
