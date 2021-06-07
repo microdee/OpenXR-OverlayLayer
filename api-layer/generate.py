@@ -762,6 +762,7 @@ add_to_handle_struct["XrAction"] = {
     std::set<XrPath> suggestedBindings;
     std::unordered_map<XrPath /* interaction Profile */, std::set<XrPath>> suggestedBindingsByProfile;
     std::unordered_map<XrPath, ActionStateUnion> stateBySubactionPath;
+    std::recursive_mutex subActionAccessMutex;
 """,
 }
 
