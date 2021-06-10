@@ -3027,8 +3027,9 @@ XrResult OverlaysLayerWaitFrameMainAsOverlay(ConnectionToOverlay::Ptr connection
 {
     /* XXX DEBUG REMOVE THIS */ OverlaysLayerLogMessage(XR_NULL_HANDLE, XR_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT, __func__, OverlaysLayerNoObjectInfo, fmt("Enter, thread %ld", GetCurrentThreadId()).c_str());
 	{
-		auto l = connection->GetLock();
-		auto l2 = connection->ctx->GetLock();
+		// XXX disable seemingly useless lock. Unless it was used for barrier synchronization
+		// auto l = connection->GetLock();
+		// auto l2 = connection->ctx->GetLock();
 
 		if (!connection->ctx->relaxedDisplayTime) {
 			// XXX tell main we are waiting by setting a variable in ctx and then wait on a semaphore
@@ -3036,7 +3037,8 @@ XrResult OverlaysLayerWaitFrameMainAsOverlay(ConnectionToOverlay::Ptr connection
 	}
     
     auto mainSession = gMainSessionContext;
-    auto lock2 = mainSession->GetLock();
+	// XXX disable lock to prevent deadlock situation.
+    // auto lock2 = mainSession->GetLock();
     // XXX this is incomplete; need to descend next chain and copy as possible from saved requirements.
     frameState->predictedDisplayTime = mainSession->sessionState.savedFrameState->predictedDisplayTime;
     frameState->predictedDisplayPeriod = mainSession->sessionState.savedFrameState->predictedDisplayPeriod;

@@ -701,7 +701,7 @@ after_downchain_main["xrWaitFrame"] = """
         if(!gConnectionsToOverlayByProcessId.empty()) {
             for(auto& overlayconn: gConnectionsToOverlayByProcessId) {
                 auto conn = overlayconn.second;
-                auto lock = conn->GetLock();
+                // auto lock = conn->GetLock(); // XXX disable seemingly useless lock. Unless it was used for barrier synchronization
                 if(conn->ctx) {
                     // XXX if this overlay app's WaitFrameMainAsOverlay is waiting on WaitFrameMain, release it.
                 }
