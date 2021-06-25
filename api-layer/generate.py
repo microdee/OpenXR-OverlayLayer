@@ -321,7 +321,7 @@ supported_structs = [
     "XrGraphicsRequirementsD3D11KHR",
     "XrSessionCreateInfoOverlayEXTX",
     "XrEventDataMainSessionVisibilityChangedEXTX",
-	"XrVisibilityMaskKHR",
+	# "XrVisibilityMaskKHR",
 ]
 
 manually_implemented_commands = [
@@ -404,7 +404,7 @@ supported_commands = [
     "xrSessionInsertDebugUtilsLabelEXT",
     "xrApplyHapticFeedback",
     "xrStopHapticFeedback",
-    "xrGetVisibilityMaskKHR",
+    # "xrGetVisibilityMaskKHR",
 ]
 
 supported_overlay_commands = [
@@ -467,7 +467,7 @@ supported_overlay_commands = [
     "xrSessionInsertDebugUtilsLabelEXT",
     "xrApplyHapticFeedback",
     "xrStopHapticFeedback",
-    "xrGetVisibilityMaskKHR",
+    # "xrGetVisibilityMaskKHR",
 ]
 
 supported_handles = [
@@ -1947,6 +1947,7 @@ StopHapticFeedbackRPC = {
     "function" : "OverlaysLayerStopHapticFeedbackMainAsOverlay"
 }
 
+'''
 GetVisibilityMaskKHRRPC = {
     "command_name" : "GetVisibilityMaskKHR",
     "args" : (
@@ -1979,6 +1980,7 @@ GetVisibilityMaskKHRRPC = {
     ),
     "function" : "OverlaysLayerGetVisibilityMaskKHRMainAsOverlay"
 }
+'''
 
 
 rpcs = (
@@ -2008,7 +2010,7 @@ rpcs = (
     GetInputSourceLocalizedNameRPC,
     ApplyHapticFeedbackRPC,
     StopHapticFeedbackRPC,
-	GetVisibilityMaskKHRRPC,
+	# GetVisibilityMaskKHRRPC,
 )
 
 

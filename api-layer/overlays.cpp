@@ -3393,12 +3393,14 @@ void AddSwapchainsFromLayers(OverlaysLayerXrSessionHandleInfo::Ptr sessionInfo, 
             }
             break;
         }
+#if 0
         case XR_TYPE_COMPOSITION_LAYER_DEPTH_INFO_KHR: {
             auto p2 = reinterpret_cast<const XrCompositionLayerDepthInfoKHR*>(p.get());
             OverlaysLayerXrSwapchainHandleInfo::Ptr swapchainInfo = OverlaysLayerGetHandleInfoFromXrSwapchain(p2->subImage.swapchain);
             swapchains.insert(swapchainInfo);
             break;
         }
+#endif
         default: {
             char structureTypeName[XR_MAX_STRUCTURE_NAME_SIZE];
             auto sessLock = sessionInfo->GetLock();
@@ -5131,7 +5133,7 @@ XrResult OverlaysLayerEnumerateBoundSourcesForActionOverlay(XrInstance instance,
 
     return XR_SUCCESS;
 }
-
+#if 0
 XrResult OverlaysLayerGetVisibilityMaskKHRMainAsOverlay(ConnectionToOverlay::Ptr connection, XrSession session, XrViewConfigurationType viewConfigurationType, uint32_t viewIndex, XrVisibilityMaskTypeKHR visibilityMaskType, XrVisibilityMaskKHR* visibilityMask)
 {
     auto synchronizeEveryProcLock = gSynchronizeEveryProc ? std::unique_lock<std::recursive_mutex>(gSynchronizeEveryProcMutex) : std::unique_lock<std::recursive_mutex>();
@@ -5150,6 +5152,7 @@ XrResult OverlaysLayerGetVisibilityMaskKHROverlay(XrInstance instance, XrSession
 
     return RPCCallGetVisibilityMaskKHR(sessionInfo->parentInstance, sessionInfo->actualHandle, viewConfigurationType, viewIndex, visibilityMaskType, visibilityMask);
 }
+#endif
 
 
 extern "C" {

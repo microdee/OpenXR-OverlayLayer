@@ -1050,7 +1050,9 @@ XrResult OverlaysLayerDestroyActionSetOverlay(XrInstance instance, XrActionSet a
 XrResult OverlaysLayerDestroyActionMainAsOverlay(ConnectionToOverlay::Ptr connection, XrAction action);
 XrResult OverlaysLayerDestroyActionOverlay(XrInstance instance, XrAction action);
 
+#if 0
 XrResult OverlaysLayerGetVisibilityMaskKHRMainAsOverlay(ConnectionToOverlay::Ptr connection, XrSession session, XrViewConfigurationType viewConfigurationType, uint32_t viewIndex, XrVisibilityMaskTypeKHR visibilityMaskType, XrVisibilityMaskKHR* visibilityMask);
 XrResult OverlaysLayerGetVisibilityMaskKHROverlay(XrInstance instance, XrSession session, XrViewConfigurationType viewConfigurationType, uint32_t viewIndex, XrVisibilityMaskTypeKHR visibilityMaskType, XrVisibilityMaskKHR* visibilityMask);
+#endif
 
 #endif /* _OVERLAYS_H_ */
