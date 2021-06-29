@@ -12,6 +12,8 @@
 #include <thread>
 #include <atomic>
 
+#define XR_OVERLAY_USE_SHARED_NTHANDLE 0
+
 struct OverlaysLayerXrException
 {
     OverlaysLayerXrException(XrResult result) :

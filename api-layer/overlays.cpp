@@ -841,7 +841,11 @@ bool OverlaySwapchain::CreateTextures(XrInstance instance, ID3D11Device *d3d11, 
         desc.Usage = D3D11_USAGE_DEFAULT;
         desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
         desc.CPUAccessFlags = 0;
+#if XR_OVERLAY_USE_SHARED_NTHANDLE
         desc.MiscFlags = D3D11_RESOURCE_MISC_SHARED_NTHANDLE | D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX;
+#else
+        desc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
+#endif
 
 
         if(TypedFormatToTypelessFormat.count(format) > 0) {
@@ -863,6 +867,7 @@ bool OverlaySwapchain::CreateTextures(XrInstance instance, ID3D11Device *d3d11, 
         }
 
         {
+#if XR_OVERLAY_USE_SHARED_NTHANDLE
             IDXGIResource1* sharedResource = NULL;
             if((result = swapchainTextures[i]->QueryInterface(__uuidof(IDXGIResource1), (LPVOID*) &sharedResource)) != S_OK) {
                 LogWindowsError(result, "xrCreateSwapchain", "QueryInterface", __FILE__, __LINE__);
@@ -895,6 +900,18 @@ bool OverlaySwapchain::CreateTextures(XrInstance instance, ID3D11Device *d3d11, 
             }
             CloseHandle(handle);
             sharedResource->Release();
+#else
+            IDXGIResource* sharedResource = NULL;
+            if((result = swapchainTextures[i]->QueryInterface(__uuidof(IDXGIResource), (LPVOID*) &sharedResource)) != S_OK) {
+                LogWindowsError(result, "xrCreateSwapchain", "QueryInterface", __FILE__, __LINE__);
+                return false;
+            }
+            if((result = sharedResource->GetSharedHandle(&swapchainHandles[i])) != S_OK) {
+                LogWindowsError(result, "xrCreateSwapchain", "GetSharedHandle", __FILE__, __LINE__);
+                return false;
+            }
+            sharedResource->Release();
+#endif
         }
     }
     return true;
@@ -974,16 +991,22 @@ OptionalSessionStateChange SessionStateTracker::GetAndDoPendingStateChange(MainS
 SwapchainCachedData::~SwapchainCachedData()
 {
     for(HANDLE acquired : remoteImagesAcquired) {
+        
+#if XR_OVERLAY_USE_SHARED_NTHANDLE
         IDXGIKeyedMutex* keyedMutex;
+#endif
         ID3D11Texture2D *sharedTexture;
         auto it = handleTextureMap.find(acquired);
         if(it != handleTextureMap.end()) {
             sharedTexture = it->second;
+
+#if XR_OVERLAY_USE_SHARED_NTHANDLE
             HRESULT result = sharedTexture->QueryInterface( __uuidof(IDXGIKeyedMutex), (LPVOID*)&keyedMutex);
             if(result == S_OK) {
                 keyedMutex->ReleaseSync(KEYED_MUTEX_OVERLAY);
                 keyedMutex->Release();
             }
+#endif
         }
     }
     remoteImagesAcquired.clear();
@@ -1001,26 +1024,35 @@ ID3D11Texture2D* SwapchainCachedData::getSharedTexture(ID3D11Device *d3d11Device
 {
     ID3D11Texture2D *sharedTexture;
 
-    ID3D11Device1 *device1;
-
     HRESULT result;
+
+#if XR_OVERLAY_USE_SHARED_NTHANDLE
+    ID3D11Device1 *device1;
 
     if((result = d3d11Device->QueryInterface(__uuidof (ID3D11Device1), (void **)&device1)) != S_OK) {
         LogWindowsError(result, nullptr, "QueryInterface", __FILE__, __LINE__);
         return nullptr;
     }
+#endif
 
     auto it = handleTextureMap.find(sourceHandle);
     if(it == handleTextureMap.end()) {
+#if XR_OVERLAY_USE_SHARED_NTHANDLE
         if((result = device1->OpenSharedResource1(sourceHandle, __uuidof(ID3D11Texture2D), (LPVOID*) &sharedTexture)) != S_OK) {
             LogWindowsError(result, nullptr, "OpenSharedResource1", __FILE__, __LINE__);
             return nullptr;
         }
+        device1->Release();
+#else
+        if((result = d3d11Device->OpenSharedResource(sourceHandle, __uuidof(ID3D11Texture2D), (LPVOID*) &sharedTexture)) != S_OK) {
+            LogWindowsError(result, nullptr, "OpenSharedResource", __FILE__, __LINE__);
+            return nullptr;
+        }
+#endif
         handleTextureMap.insert({sourceHandle, sharedTexture});
     } else  {
         sharedTexture = it->second;
     }
-    device1->Release();
 
     return sharedTexture;
 }
@@ -3150,7 +3182,9 @@ XrResult OverlaysLayerWaitSwapchainImageMainAsOverlay(ConnectionToOverlay::Ptr c
 
     auto& mainAsOverlaySwapchain = swapchainInfo->mainAsOverlaySwapchain;
     if(mainAsOverlaySwapchain->remoteImagesAcquired.find(sourceImage) != mainAsOverlaySwapchain->remoteImagesAcquired.end()) {
+#if XR_OVERLAY_USE_SHARED_NTHANDLE
         IDXGIKeyedMutex* keyedMutex;
+#endif
         {
             ID3D11Device* d3d11Device;
             {
@@ -3159,19 +3193,25 @@ XrResult OverlaysLayerWaitSwapchainImageMainAsOverlay(ConnectionToOverlay::Ptr c
             }
 
             ID3D11Texture2D *sharedTexture = mainAsOverlaySwapchain->getSharedTexture(d3d11Device, sourceImage);
+            
+#if XR_OVERLAY_USE_SHARED_NTHANDLE
             HRESULT result = sharedTexture->QueryInterface( __uuidof(IDXGIKeyedMutex), (LPVOID*)&keyedMutex);
             if(result != S_OK) {
                 LogWindowsError(result, "xrWaitSwapchainImage", "QueryInterface", __FILE__, __LINE__);
                 return XR_ERROR_RUNTIME_FAILURE;
             }
+#endif
         }
         mainAsOverlaySwapchain->remoteImagesAcquired.erase(sourceImage);
+        
+#if XR_OVERLAY_USE_SHARED_NTHANDLE
         HRESULT result = keyedMutex->ReleaseSync(SwapchainCachedData::KEYED_MUTEX_OVERLAY);
         keyedMutex->Release();
         if(result != S_OK) {
             LogWindowsError(result, "xrWaitSwapchainImage", "ReleaseSync", __FILE__, __LINE__);
             return XR_ERROR_RUNTIME_FAILURE;
         }
+#endif
     }
 
     return result;
@@ -3200,6 +3240,8 @@ XrResult OverlaysLayerWaitSwapchainImageOverlay(XrInstance instance, XrSwapchain
     }
 
     overlaySwapchain->waited = true;
+
+#if XR_OVERLAY_USE_SHARED_NTHANDLE
     IDXGIKeyedMutex* keyedMutex;
     HRESULT hresult;
 
@@ -3214,6 +3256,7 @@ XrResult OverlaysLayerWaitSwapchainImageOverlay(XrInstance instance, XrSwapchain
         LogWindowsError(result, "xrWaitSwapchainImage", "AcquireSync", __FILE__, __LINE__);
         return XR_ERROR_RUNTIME_FAILURE;
     }
+#endif
 
     return result;
 }
@@ -3235,6 +3278,7 @@ XrResult OverlaysLayerReleaseSwapchainImageMainAsOverlay(ConnectionToOverlay::Pt
 
     ID3D11Texture2D *sharedTexture = mainAsOverlaySwapchain->getSharedTexture(d3d11Device, sourceImage);
 
+#if XR_OVERLAY_USE_SHARED_NTHANDLE
     {
         IDXGIKeyedMutex* keyedMutex;
         HRESULT result;
@@ -3250,6 +3294,7 @@ XrResult OverlaysLayerReleaseSwapchainImageMainAsOverlay(ConnectionToOverlay::Pt
             return XR_ERROR_RUNTIME_FAILURE;
         }
     }
+#endif
 
     mainAsOverlaySwapchain->remoteImagesAcquired.insert(sourceImage);
     int which = mainAsOverlaySwapchain->acquired[0];
@@ -3293,6 +3338,7 @@ XrResult OverlaysLayerReleaseSwapchainImageOverlay(XrInstance instance, XrSwapch
 
     overlaySwapchain->acquired.erase(overlaySwapchain->acquired.begin());
 
+#if XR_OVERLAY_USE_SHARED_NTHANDLE
     IDXGIKeyedMutex* keyedMutex;
     HRESULT hresult = overlaySwapchain->swapchainTextures[beingReleased]->QueryInterface( __uuidof(IDXGIKeyedMutex), (LPVOID*)&keyedMutex);
     if(hresult != S_OK) {
@@ -3305,6 +3351,7 @@ XrResult OverlaysLayerReleaseSwapchainImageOverlay(XrInstance instance, XrSwapch
         LogWindowsError(hresult, "xrReleaseSwapchainImage", "ReleaseSync", __FILE__, __LINE__);
         return XR_ERROR_RUNTIME_FAILURE;
     }
+#endif
 
     HANDLE sourceImage = overlaySwapchain->swapchainHandles[beingReleased];
 
